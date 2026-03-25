@@ -20,6 +20,16 @@ The agent operates in a continuous loop executing the following steps for each i
 5. **Synthesis (TTS):** Kokoro ONNX synthesizes the generated response into high-quality audio.
 6. **Playback:** The resulting audio file is played back to you using `ffplay`.
 
+## Project Structure
+
+The project has been refactored into a modular architecture for better maintainability:
+
+- `main.py`: The entry point that initializes and runs the voice agent using the configuration.
+- `core/`: Directory containing the core modules.
+  - `config.py`: Contains configurable parameters (e.g., sample rates, silence thresholds, model paths).
+  - `knowledge.py`: Handles RAG operations, document embeddings, and FAISS vector database setup.
+  - `agent.py`: Encapsulates the `VoiceAgent` class processing the core loop (audio recording, STT, RAG generation, TTS, and playback).
+
 ## Prerequisites
 
 Before running the application, you need to install system dependencies for audio recording and playback:

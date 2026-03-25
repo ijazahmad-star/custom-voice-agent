@@ -7,11 +7,13 @@ class VoiceAgentConfig:
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
     RATE = 16000
-    RECORD_SECONDS = 5
+    RECORD_SECONDS = 15
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     
     # Model Configurations
-    STT_MODEL = "openai/whisper-large-v3-turbo"
+    STT_MODEL = "openai/whisper-base"
+    SILENCE_THRESHOLD = 500
+    SILENCE_DURATION_SECONDS = 1.5
     LLM_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
     EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
     KOKORO_MODEL = "kokoro-v1.0.onnx"

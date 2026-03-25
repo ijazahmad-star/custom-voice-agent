@@ -3,8 +3,32 @@ import wave
 import pyaudio
 import numpy as np
 import soundfile as sf
+# from ctypes import *
+# from contextlib import contextmanager
 from transformers import pipeline
 from kokoro_onnx import Kokoro
+
+# ALSA error handler to suppress PortAudio warnings on Linux
+# ERROR_HANDLER_FUNC = CFUNCTYPE(None, c_char_p, c_int, c_char_p, c_int, c_char_p)
+# def py_error_handler(filename, line, function, err, fmt):
+#     pass
+# c_error_handler = ERROR_HANDLER_FUNC(py_error_handler)
+
+# @contextmanager
+# def suppress_alsa_warnings():
+#     try:
+#         asound = cdll.LoadLibrary('libasound.so.2')
+#         asound.snd_lib_error_set_handler(c_error_handler)
+#         yield
+#         asound.snd_lib_error_set_handler(None)
+#     except OSError:
+#         try:
+#             asound = cdll.LoadLibrary('libasound.so')
+#             asound.snd_lib_error_set_handler(c_error_handler)
+#             yield
+#             asound.snd_lib_error_set_handler(None)
+#         except OSError:
+#             yield
 
 from core.knowledge import setup_knowledge_base
 
@@ -37,6 +61,8 @@ class VoiceAgent:
 
     def record_audio(self, output_filename="input.wav"):
         """Records audio from mic and saves to output_filename"""
+        # with suppress_alsa_warnings():
+            # p = pyaudio.PyAudio()
         p = pyaudio.PyAudio()
         stream = p.open(
             format=self.config.FORMAT, 
@@ -48,9 +74,29 @@ class VoiceAgent:
         
         print("\n🎤 Listening... (Speak now)")
         frames = []
-        for _ in range(0, int(self.config.RATE / self.config.CHUNK * self.config.RECORD_SECONDS)):
+        silence_frames = 0
+        silence_threshold = getattr(self.config, 'SILENCE_THRESHOLD', 500)
+        silence_duration_frames = int(
+            self.config.RATE / self.config.CHUNK * getattr(self.config, 'SILENCE_DURATION_SECONDS', 1.5)
+        )
+        max_frames = int(self.config.RATE / self.config.CHUNK * self.config.RECORD_SECONDS)
+        
+        for _ in range(max_frames):
             data = stream.read(self.config.CHUNK)
             frames.append(data)
+            
+            # Calculate RMS energy to detect silence
+            audio_data = np.frombuffer(data, dtype=np.int16)
+            rms = np.sqrt(np.mean(audio_data.astype(np.float32)**2))
+            
+            if rms < silence_threshold:
+                silence_frames += 1
+            else:
+                silence_frames = 0
+                
+            if silence_frames >= silence_duration_frames:
+                print("🔇 Silence detected, processing...")
+                break
         
         print("🛑 Recording finished.")
         stream.stop_stream()
@@ -76,7 +122,12 @@ class VoiceAgent:
         context = docs[0].page_content if docs else "No relevant context found."
         
         # C. LLM Generation
-        prompt = f"Context: {context}\nQuestion: {text}\nAnswer concisely:"
+        prompt = (
+            f"<|im_start|>system\nYou are a voice assistant. Provide ONLY the direct answer to the user's question based on the context. "
+            f"Do NOT repeat the question, do not explain your reasoning, and do use conversational filler.<|im_end|>\n"
+            f"<|im_start|>user\nContext: {context}\nQuestion: {text}<|im_end|>\n"
+            f"<|im_start|>assistant\n"
+        )
         generated_output = self.llm_model(prompt, max_new_tokens=50, return_full_text=False)
         response = generated_output[0]['generated_text']
         print(f"AI: {response}")
