@@ -8,6 +8,13 @@ import soundfile as sf
 from transformers import pipeline
 from kokoro_onnx import Kokoro
 
+from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain_community.chat_models import ChatHuggingFace
+from langchain_groq import ChatGroq
+from langchain_core.tools import Tool
+from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
+
 # ALSA error handler to suppress PortAudio warnings on Linux
 # ERROR_HANDLER_FUNC = CFUNCTYPE(None, c_char_p, c_int, c_char_p, c_int, c_char_p)
 # def py_error_handler(filename, line, function, err, fmt):
@@ -44,6 +51,7 @@ class VoiceAgent:
         
         self.vector_db = setup_knowledge_base(self.config)
         self._load_models()
+        self._setup_agent()
 
     def _load_models(self):
         print(f"Loading Models on {self.config.DEVICE}...")
@@ -52,12 +60,40 @@ class VoiceAgent:
             model=self.config.STT_MODEL, 
             device=self.config.DEVICE
         )
-        self.llm_model = pipeline(
-            "text-generation", 
-            model=self.config.LLM_MODEL, 
-            device_map="auto"
-        )
+        if not getattr(self.config, 'USE_GROQ', False):
+            self.llm_model = pipeline(
+                "text-generation", 
+                model=self.config.LLM_MODEL, 
+                device_map="auto",
+                max_new_tokens=512,
+                return_full_text=False,
+                token=os.getenv("HF_TOKEN")
+            )
+        else:
+            print(f"Using Groq Cloud Inference with model: {self.config.LLM_MODEL}")
         self.tts = Kokoro(self.config.KOKORO_MODEL, self.config.KOKORO_VOICES)
+
+    def _setup_agent(self):
+        print("Setting up Agent Mode...")
+        if getattr(self.config, 'USE_GROQ', False):
+            self.chat_model = ChatGroq(
+                model_name=self.config.LLM_MODEL,
+                groq_api_key=os.getenv("groq_api_key")
+            )
+        else:
+            self.langchain_llm = HuggingFacePipeline(pipeline=self.llm_model)
+            self.chat_model = ChatHuggingFace(llm=self.langchain_llm)
+        
+        tools = [
+            Tool(
+                name="knowledge_base_search",
+                func=lambda q: self.vector_db.similarity_search(q, k=1)[0].page_content if self.vector_db.similarity_search(q, k=1) else "No context found.",
+                description="Search the company knowledge base to answer questions about HR, IT, logistics, and company policies. Input should be a concise query string."
+            )
+        ]
+        
+        self.memory = MemorySaver()
+        self.agent = create_react_agent(self.chat_model, tools=tools, checkpointer=self.memory)
 
     def record_audio(self, output_filename="input.wav"):
         """Records audio from mic and saves to output_filename"""
@@ -117,19 +153,19 @@ class VoiceAgent:
         text = self.stt_model(input_filename)["text"]
         print(f"You said: {text}")
 
-        # B. Context Retrieval (RAG)
-        docs = self.vector_db.similarity_search(text, k=1)
-        context = docs[0].page_content if docs else "No relevant context found."
-        
-        # C. LLM Generation
-        prompt = (
-            f"<|im_start|>system\nYou are a voice assistant. Provide ONLY the direct answer to the user's question based on the context. "
-            f"Do NOT repeat the question, do not explain your reasoning, and do use conversational filler.<|im_end|>\n"
-            f"<|im_start|>user\nContext: {context}\nQuestion: {text}<|im_end|>\n"
-            f"<|im_start|>assistant\n"
-        )
-        generated_output = self.llm_model(prompt, max_new_tokens=50, return_full_text=False)
-        response = generated_output[0]['generated_text']
+        # B. Agent Thinking (RAG Tool + LLM Gen)
+        print("🧠 Agent is thinking...")
+        try:
+            # We strip trailing punctuation for better agent tool-matching
+            clean_text = text.strip()
+            config = {"configurable": {"thread_id": "user_session_1"}}
+            
+            result = self.agent.invoke({"messages": [("user", clean_text)]}, config=config)
+            response = result["messages"][-1].content
+        except Exception as e:
+            response = "I encountered an error while thinking. Let's try again."
+            print(f"Agent error: {e}")
+            
         print(f"AI: {response}")
 
         # D. Text-To-Speech (TTS)

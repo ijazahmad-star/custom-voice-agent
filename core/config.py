@@ -14,7 +14,8 @@ class VoiceAgentConfig:
     STT_MODEL = "openai/whisper-base"
     SILENCE_THRESHOLD = 500
     SILENCE_DURATION_SECONDS = 1.5
-    LLM_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
+    LLM_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+    USE_GROQ = True
     EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
     KOKORO_MODEL = "kokoro-v1.0.onnx"
     KOKORO_VOICES = "voices-v1.0.bin"
