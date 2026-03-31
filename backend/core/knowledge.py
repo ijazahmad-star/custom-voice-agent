@@ -1,33 +1,56 @@
+import os
+from supabase.client import create_client
+from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 def setup_knowledge_base(config):
-    print("Loading Knowledge Base...")
+    """
+    Initializes the Supabase vector store and raw client.
+    Returns:
+        tuple (vector_db, supabase_client, embeddings)
+    """
+    print("Initializing Supabase Knowledge Base...")
+    
+    # 1. Initialize Supabase Client
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+    
+    if not supabase_url or not supabase_key:
+        raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env")
+        
+    supabase_client = create_client(supabase_url, supabase_key)
+    
+    # 2. Initialize Embeddings
     embeddings = HuggingFaceEmbeddings(model_name=config.EMBEDDING_MODEL)
-    data = [
-        # Office Logistics & Security
-        "The secret project code for 'Project Zion' is 5543.",
-        "The office is closed on Fridays, but the main lobby remains open for deliveries until 2 PM.",
-        "The guest Wi-Fi password is 'CoffeeAndCode2026'.",
-        "Emergency exits are located at the North and South ends of the 4th-floor corridor.",
-        "The building security desk phone number is extension 9110.",
+    
+    # 3. Initialize Vector Store
+    vector_db = SupabaseVectorStore(
+        client=supabase_client,
+        embedding=embeddings,
+        table_name=config.VECTOR_TABLE,
+        query_name=config.VECTOR_QUERY
+    )
+    
+    return vector_db, supabase_client, embeddings
 
-        # Human Resources & Benefits
-        "The company holiday policy allows for 25 days of paid time off per year.",
-        "Health insurance enrollment for 2026 ends on November 15th.",
-        "Remote work is permitted on Mondays and Wednesdays for all engineering teams.",
-        "The annual company retreat is scheduled for September 12th in Lake Tahoe.",
-
-        # IT Support & Tools
-        "To reset your Windows password, press Ctrl+Alt+Delete and select 'Change a password'.",
-        "The IT support ticket portal can be reached at help.internal.ai.",
-        "New laptop requests require manager approval and take approximately 5 business days to process.",
-        "The office printer on the second floor is named 'Laser-Jet-02' and requires a badge swipe to print.",
-
-        # Cafeteria & Perks
-        "The company cafeteria serves pizza only on Thursdays and tacos on Tuesdays.",
-        "Free snacks are replenished in the breakroom every Monday morning at 9 AM.",
-        "Employees get a 20% discount at the 'Green Bean' coffee shop downstairs."
-    ]
-    vector_db = FAISS.from_texts(data, embeddings)
+def add_documents_to_knowledge_base(text: str, config, vector_db):
+    """
+    Chunks the input text and adds it to the Supabase vector store via pgvector.
+    """
+    print(f"Adding new content to Supabase (text length: {len(text)})")
+    
+    # 1. Chunk the text
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len,
+    )
+    chunks = text_splitter.split_text(text)
+    
+    # 2. Add to Supabase
+    vector_db.add_texts(chunks)
+    
+    print(f"Knowledge Base updated in Supabase table: {config.VECTOR_TABLE}")
+    
     return vector_db
