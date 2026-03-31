@@ -19,3 +19,9 @@ class VoiceAgentConfig:
     EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
     KOKORO_MODEL = "kokoro-v1.0.onnx"
     KOKORO_VOICES = "voices-v1.0.bin"
+    
+    # Supabase / Vector DB Configurations
+    SUPABASE_URL = "SUPABASE_URL" # Will be fetched from env
+    SUPABASE_KEY = "SUPABASE_SERVICE_KEY" # Will be fetched from env
+    VECTOR_TABLE = "documents"
+    VECTOR_QUERY = "match_documents"

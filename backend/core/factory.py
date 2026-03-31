@@ -9,13 +9,15 @@ from core.tools.info_tools import save_user_info, retrieve_user_info, list_all_u
 from core.tools.kb_tool import create_kb_tool
 from core.prompts import SYSTEM_PROMPT
 
-def create_agent(config, vector_db, llm_pipeline=None):
+def create_agent(config, vector_db, supabase_client=None, embeddings=None, llm_pipeline=None):
     """
     Creates a React agent with the specified configuration and tools.
     
     Args:
         config: VoiceAgentConfig object.
-        vector_db: FAISS vector database for RAG.
+        vector_db: SupabaseVectorStore object.
+        supabase_client: Raw Supabase client for direct RPC.
+        embeddings: HuggingFaceEmbeddings model for manual embedding.
         llm_pipeline: Optional HuggingFace pipeline for local execution.
     """
     print("Setting up Agent Mode...")
@@ -32,7 +34,7 @@ def create_agent(config, vector_db, llm_pipeline=None):
         chat_model = ChatHuggingFace(llm=langchain_llm)
     
     # Initialize tools
-    kb_tool = create_kb_tool(vector_db)
+    kb_tool = create_kb_tool(vector_db, supabase_client, embeddings)
     tools = [
         kb_tool,
         save_user_info,

@@ -6,7 +6,7 @@ import soundfile as sf
 from transformers import pipeline
 from kokoro_onnx import Kokoro
 
-from core.knowledge import setup_knowledge_base
+from core.knowledge import setup_knowledge_base, add_documents_to_knowledge_base
 from core.factory import create_agent
 
 class VoiceAgent:
@@ -15,13 +15,22 @@ class VoiceAgent:
     def __init__(self, config):
         self.config = config
         self.vector_db = None
+        self.supabase_client = None
+        self.embeddings = None
         self.stt_model = None
         self.llm_model = None
         self.tts = None
         
-        self.vector_db = setup_knowledge_base(self.config)
+        self.vector_db, self.supabase_client, self.embeddings = setup_knowledge_base(self.config)
         self._load_models()
         self._setup_agent()
+
+    def add_knowledge(self, text: str):
+        """Adds text content to the agent's knowledge base and persists it."""
+        if self.vector_db:
+            self.vector_db = add_documents_to_knowledge_base(text, self.config, self.vector_db)
+            return True
+        return False
 
     def _load_models(self):
         print(f"Loading Models on {self.config.DEVICE}...")
@@ -48,6 +57,8 @@ class VoiceAgent:
         self.agent = create_agent(
             config=self.config,
             vector_db=self.vector_db,
+            supabase_client=self.supabase_client,
+            embeddings=self.embeddings,
             llm_pipeline=self.llm_model if not getattr(self.config, 'USE_GROQ', False) else None
         )
 
@@ -105,48 +116,61 @@ class VoiceAgent:
             
         return output_filename
 
-    def process_and_speak(self, input_filename="input.wav", output_filename="response.wav"):
-        """Processes the recorded audio, gets an AI response, and plays it back."""
-        # A. Speech-To-Text (STT)
+    def speech_to_text(self, audio_filename):
+        """Converts audio file to text using the STT model."""
         try:
-            text = self.stt_model(input_filename)["text"]
-            if not text:
-                print("No audio detected.")
-                return
-            print(f"You said: {text}")
+            result = self.stt_model(audio_filename)
+            text = result["text"]
+            return text.strip() if text else ""
         except Exception as e:
             print(f"STT error: {e}")
+            return ""
+
+    def get_llm_response(self, text, thread_id="user_session_1"):
+        """Gets a response from the LLM based on the input text."""
+        try:
+            config = {"configurable": {"thread_id": thread_id}}
+            result = self.agent.invoke({"messages": [("user", text)]}, config=config)
+            return result["messages"][-1].content
+        except Exception as e:
+            print(f"Agent error: {e}")
+            return "I encountered an error while thinking. Let's try again."
+
+    def text_to_speech(self, text, output_filename="response.wav"):
+        """Converts text to speech and saves to output_filename."""
+        try:
+            samples, sample_rate = self.tts.create(text, voice="af_heart", speed=1.1)
+            sf.write(output_filename, samples, sample_rate)
+            return output_filename
+        except Exception as e:
+            print(f"TTS error: {e}")
+            return None
+
+    def process_and_speak(self, input_filename="input.wav", output_filename="response.wav"):
+        """Processes the recorded audio, gets an AI response, and plays it back (CLI usage)."""
+        # A. Speech-To-Text (STT)
+        text = self.speech_to_text(input_filename)
+        if not text:
+            print("No audio detected.")
             return
+
+        print(f"You said: {text}")
 
         # B. Agent Thinking
         print("🧠 Agent is thinking...")
-        try:
-            clean_text = text.strip()
-            # thread_id: allows persistence of chat history per session
-            config = {"configurable": {"thread_id": "user_session_1"}}
-            
-            result = self.agent.invoke({"messages": [("user", clean_text)]}, config=config)
-            response = result["messages"][-1].content
-        except Exception as e:
-            response = "I encountered an error while thinking. Let's try again."
-            print(f"Agent error: {e}")
-            
+        response = self.get_llm_response(text)
         print(f"AI: {response}")
 
         # D. Text-To-Speech (TTS)
-        try:
-            samples, sample_rate = self.tts.create(response, voice="af_heart", speed=1.1)
-            sf.write(output_filename, samples, sample_rate)
-            
+        audio_path = self.text_to_speech(response, output_filename)
+        
+        if audio_path:
             # E. Playback
             print("🔊 Speaking...")
-            # Note:ffplay requires the binary to be installed on the system.
-            os.system(f"ffplay -nodisp -autoexit -loglevel quiet {output_filename}")
-        except Exception as e:
-            print(f"TTS/Playback error: {e}")
+            os.system(f"ffplay -nodisp -autoexit -loglevel quiet {audio_path}")
 
     def run(self):
-        """Starts the interactive voice agent loop."""
+        """Starts the interactive voice agent loop (CLI)."""
         try:
             while True:
                 input("\nPress Enter to start recording (or Ctrl+C to quit)...")
