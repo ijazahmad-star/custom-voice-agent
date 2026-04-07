@@ -8,7 +8,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Aura - AI Voice Agent",
+  title: "Nova - AI Voice Agent",
   description: "Next-generation interactive voice assistant",
 };
 
@@ -23,7 +23,12 @@ export default function RootLayout({
       className={`${outfit.variable} font-sans h-full antialiased dark`}
       suppressHydrationWarning
     >
-      <body className="min-h-full bg-[#0a0a0a] text-white flex flex-col" suppressHydrationWarning>{children}</body>
+      <body
+        className="min-h-full bg-[#0a0a0a] text-white flex flex-col"
+        suppressHydrationWarning
+      >
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,8 +1,8 @@
-# AURA - AI Voice Agent with RAG (Supabase & pgvector)
+# NOVA - AI Voice Agent with RAG (Supabase & pgvector)
 
-AURA is a high-performance, professional voice-to-voice agentic system designed for seamless, session-based interactions. It integrates advanced Speech-To-Text (STT), Retrieval-Augmented Generation (RAG) using Supabase, and high-fidelity Text-To-Speech (TTS) to provide a premium hands-free experience.
+NOVA is a high-performance, professional voice-to-voice agentic system designed for seamless, session-based interactions. It integrates advanced Speech-To-Text (STT), Retrieval-Augmented Generation (RAG) using Supabase, and high-fidelity Text-To-Speech (TTS) to provide a premium hands-free experience.
 
-![AURA UX](https://raw.githubusercontent.com/ijazahmad-star/custom-voice-agent/main/architecture.png) *Note: Replace with actual screenshot*
+![NOVA UX](https://raw.githubusercontent.com/ijazahmad-star/custom-voice-agent/main/architecture.png) _Note: Replace with actual screenshot_
 
 ## 🌟 Key Features
 
@@ -16,15 +16,15 @@ AURA is a high-performance, professional voice-to-voice agentic system designed 
 
 ## 🛠️ Tech Stack
 
-| Component | Technology |
-| :--- | :--- |
-| **Frontend** | Next.js 15, TailwindCSS, Lucide-React |
-| **Backend** | FastAPI, Python 3.13 |
-| **Database** | Supabase (PostgreSQL + `pgvector`) |
-| **RAG / Memory** | LangChain, LangGraph, Alembic |
+| Component        | Technology                              |
+| :--------------- | :-------------------------------------- |
+| **Frontend**     | Next.js 15, TailwindCSS, Lucide-React   |
+| **Backend**      | FastAPI, Python 3.13                    |
+| **Database**     | Supabase (PostgreSQL + `pgvector`)      |
+| **RAG / Memory** | LangChain, LangGraph, Alembic           |
 | **Models (STT)** | OpenAI Whisper (Local via Transformers) |
-| **Models (LLM)** | Meta Llama 3/4 (via Groq Cloud) |
-| **Models (TTS)** | Kokoro-ONNX (High-fidelity local TTS) |
+| **Models (LLM)** | Meta Llama 3/4 (via Groq Cloud)         |
+| **Models (TTS)** | Kokoro-ONNX (High-fidelity local TTS)   |
 
 ---
 
@@ -39,7 +39,7 @@ AURA is a high-performance, professional voice-to-voice agentic system designed 
 
 ### 1. Database Setup (Supabase)
 
-AURA uses **Alembic** to manage its database schema.
+NOVA uses **Alembic** to manage its database schema.
 
 1.  Create a new Supabase project.
 2.  Enable the `pgvector` extension (Alembic will handle this, but ensure your user has permissions).
@@ -55,6 +55,7 @@ uv sync
 ```
 
 **Configure `.env`:**
+
 ```env
 SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_KEY=your_service_role_key
@@ -64,11 +65,13 @@ groq_api_key=your_groq_key
 ```
 
 **Run Migrations:**
+
 ```bash
 uv run alembic upgrade head
 ```
 
 **Start the Server:**
+
 ```bash
 uv run uvicorn app:app --port 8000 --reload
 ```
@@ -81,22 +84,23 @@ npm install
 npm run dev
 ```
 
-Visit `http://localhost:3000` to interact with AURA.
+Visit `http://localhost:3000` to interact with NOVA.
 
 ---
 
 ## 📖 Usage Guide
 
-1.  **Connect**: Click the **"Connect to Aura"** button to start a session.
-2.  **Speak**: AURA detects your speech automatically. Just talk naturally.
+1.  **Connect**: Click the **"Connect to Nova"** button to start a session.
+2.  **Speak**: NOVA detects your speech automatically. Just talk naturally.
 3.  **Upload Knowledge**: Before a session, you can upload **PDFs**. These are chunked, embedded locally, and uploaded to Supabase.
-4.  **Inquire**: Ask AURA questions about the uploaded content. She will retrieve the relevant context and provide accurate answers.
+4.  **Inquire**: Ask NOVA questions about the uploaded content. She will retrieve the relevant context and provide accurate answers.
 
 ---
 
 ## 🏗️ Architecture
 
-AURA follows a modular factory pattern:
+NOVA follows a modular factory pattern:
+
 - `core/agent.py`: Orchestrates STT -> LLM -> TTS.
 - `core/knowledge.py`: Manages vector indexing in Supabase.
 - `core/factory.py`: Constructs the LangGraph React agent with custom tools.
